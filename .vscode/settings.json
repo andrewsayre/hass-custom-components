@@ -1,5 +1,5 @@
 {
-    "python.pythonPath": "c:\\repos\\home-assistant-config\\custom-components\\.venv\\Scripts\\python.exe",
+    "python.pythonPath": ".venv\\Scripts\\python.exe",
     "python.linting.pylintEnabled": true,
     "python.linting.enabled": true,
     "python.formatting.provider": "black",
