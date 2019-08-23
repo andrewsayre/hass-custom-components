@@ -1,0 +1,8 @@
+{
+    "domain": "denonavr_switch",
+    "name": "Denon/Maranz AVR Power Switch",
+    "documentation": "",
+    "dependencies": [],
+    "codeowners": [],
+    "requirements": []
+  }
