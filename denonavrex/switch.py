@@ -1,21 +1,12 @@
 """A switch to control the power state of Denon and Maranz comaptible AVRs."""
 import asyncio
 import logging
-import xml.etree.ElementTree as ET
-from typing import Optional
 
-import homeassistant.helpers.config_validation as cv
-import voluptuous as vol
-from homeassistant.components.switch import PLATFORM_SCHEMA, SwitchEntity
+from homeassistant.components.switch import SwitchEntity
 from homeassistant.const import CONF_HOST, CONF_NAME, CONF_PORT
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-URL_TURN_OFF = "http://{host}:{port}/goform/formiPhoneAppPower.xml?{zone}+PowerStandby"
-URL_TURN_ON = "http://{host}:{port}/goform/formiPhoneAppPower.xml?{zone}+PowerOn"
-URL_POWER_STATUS = "http://{host}:{port}/goform/AppCommand.xml"
-
-ZONE_POWER_STATUS_REQUEST = '<?xml version="1.0" encoding="utf-8" ?><tx><cmd id="1">GetAllZonePowerStatus</cmd></tx>'
-HEADERS = {"Content-Type": "application/xml"}
+from .avrclient import AvrClient, AvrZone
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -25,82 +16,47 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     switches = []
     host = discovery_info[CONF_HOST]
     port = discovery_info[CONF_PORT]
-    zones = await get_zone_power_status(hass, host, port)
-    for index, is_on in enumerate(zones):
-        switches.append(
-            DenonAvrSwitch(
-                f"{discovery_info[CONF_NAME]} Zone {index + 1}",
-                host,
-                port,
-                index + 1,
-                is_on,
-            )
-        )
+    name = discovery_info[CONF_NAME]
+
+    client = AvrClient(host, port, async_get_clientsession(hass))
+    await client.update()
+    for zone in client.zones:
+        switches.append(DenonAvrSwitch(zone, name))
+
     async_add_entities(switches, True)
-
-
-async def get_zone_power_status(hass, host, port):
-    """Get the power status of each zone."""
-    session = async_get_clientsession(hass)
-    url = URL_POWER_STATUS.format(host=host, port=port)
-    async with session.post(
-        url, data=ZONE_POWER_STATUS_REQUEST, headers=HEADERS
-    ) as resp:
-        if resp.status == 200:
-            xml = ET.fromstring(await resp.text())
-            zones = []
-            for zone in xml[0]:
-                zones.append(zone.text == "ON")
-            return zones
-        _LOGGER.error("Unable to get device power status: %s", resp)
 
 
 class DenonAvrSwitch(SwitchEntity):
     """Representation of a Denon/Maranz AVR power switch."""
 
-    def __init__(self, name: str, host: str, port: int, zone: int, is_on: bool):
+    def __init__(self, zone: AvrZone, name: str):
         """Init the switch."""
-        self._is_on = is_on
-        self._name = name
-        self._host = host
-        self._port = port
         self._zone = zone
+        self._name = f"{name} Zone {zone.zone_number}"
 
     @property
     def is_on(self) -> bool:
         """Return true if it is on."""
-        return self._is_on
+        return self._zone.is_on
 
     @property
-    def name(self) -> Optional[str]:
+    def name(self):
         """Return the name of the entity."""
         return self._name
 
     async def async_turn_on(self, **kwargs):
         """Turn the switch on."""
-        await self._set_state(True)
+        await self._zone.set_power_state(True)
+        self.hass.async_create_task(self._schedule_delayed_update())
 
     async def async_turn_off(self, **kwargs):
         """Turn the switch off."""
-        await self._set_state(False)
+        await self._zone.set_power_state(False)
+        self.hass.async_create_task(self._schedule_delayed_update())
 
     async def async_update(self):
         """Parse the data for this switch."""
-        status = await get_zone_power_status(self.hass, self._host, self._port)
-        if status:
-            self._is_on = status[self._zone - 1]
-
-    async def _set_state(self, state: bool):
-        """Set the state of the switch."""
-        session = async_get_clientsession(self.hass)
-        url = (URL_TURN_ON if state else URL_TURN_OFF).format(
-            host=self._host, port=self._port, zone=self._zone
-        )
-        async with session.get(url) as resp:
-            if resp.status == 200:
-                self.hass.async_create_task(self._schedule_delayed_update())
-            else:
-                _LOGGER.error("Unable to set device state: %s", resp)
+        await self._zone.update()
 
     async def _schedule_delayed_update(self):
         """Update the state after a delay."""
