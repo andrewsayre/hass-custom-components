@@ -4,12 +4,11 @@ import logging
 import xml.etree.ElementTree as ET
 from typing import Optional
 
+import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
-from homeassistant.components.switch import PLATFORM_SCHEMA, SwitchDevice
+from homeassistant.components.switch import PLATFORM_SCHEMA, SwitchEntity
 from homeassistant.const import CONF_HOST, CONF_NAME, CONF_PORT
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-import homeassistant.helpers.config_validation as cv
-
 
 URL_TURN_OFF = "http://{host}:{port}/goform/formiPhoneAppPower.xml?{zone}+PowerStandby"
 URL_TURN_ON = "http://{host}:{port}/goform/formiPhoneAppPower.xml?{zone}+PowerOn"
@@ -20,25 +19,21 @@ HEADERS = {"Content-Type": "application/xml"}
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
-    {
-        vol.Required(CONF_NAME): cv.string,
-        vol.Required(CONF_HOST): cv.string,
-        vol.Optional(CONF_PORT, default=8080): cv.port,
-    }
-)
-
 
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
     """Set up the switch platform."""
     switches = []
-    host = config[CONF_HOST]
-    port = config[CONF_PORT]
+    host = discovery_info[CONF_HOST]
+    port = discovery_info[CONF_PORT]
     zones = await get_zone_power_status(hass, host, port)
     for index, is_on in enumerate(zones):
         switches.append(
             DenonAvrSwitch(
-                f"{config[CONF_NAME]} Zone {index + 1}", host, port, index + 1, is_on
+                f"{discovery_info[CONF_NAME]} Zone {index + 1}",
+                host,
+                port,
+                index + 1,
+                is_on,
             )
         )
     async_add_entities(switches, True)
@@ -60,7 +55,7 @@ async def get_zone_power_status(hass, host, port):
         _LOGGER.error("Unable to get device power status: %s", resp)
 
 
-class DenonAvrSwitch(SwitchDevice):
+class DenonAvrSwitch(SwitchEntity):
     """Representation of a Denon/Maranz AVR power switch."""
 
     def __init__(self, name: str, host: str, port: int, zone: int, is_on: bool):
