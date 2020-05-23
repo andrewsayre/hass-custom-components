@@ -4,7 +4,8 @@ from datetime import timedelta
 
 import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
-from homeassistant.const import CONF_HOST, CONF_HOSTS, CONF_NAME, CONF_PORT
+from homeassistant.const import (CONF_HOST, CONF_HOSTS, CONF_NAME, CONF_PORT,
+                                 CONF_SCAN_INTERVAL)
 from homeassistant.helpers.typing import ConfigType, HomeAssistantType
 
 from .avrclient import AvrClient
@@ -23,6 +24,9 @@ CONFIG_SCHEMA = vol.Schema(
                         vol.Required(CONF_NAME): cv.string,
                         vol.Required(CONF_HOST): cv.string,
                         vol.Optional(CONF_PORT, default=8080): cv.port,
+                        vol.Optional(
+                            CONF_SCAN_INTERVAL, default=DEFAULT_SCAN_INTERVAL
+                        ): cv.time_period,
                     }
                 )
             ],
@@ -48,18 +52,17 @@ async def async_setup(hass: HomeAssistantType, config: ConfigType):
         await manager.update()
         hass.data[DOMAIN][CONF_HOSTS][manager.host] = manager
 
-        hass.helpers.event.async_track_time_interval(
-            manager.update, DEFAULT_SCAN_INTERVAL
-        )
+        scan_interval = entry_config[CONF_SCAN_INTERVAL]
+        hass.helpers.event.async_track_time_interval(manager.update, scan_interval)
 
         hass.async_create_task(
             hass.helpers.discovery.async_load_platform(
-                "media_player", DOMAIN, entry_config, config
+                "media_player", DOMAIN, {CONF_HOST: manager.host}, config
             )
         )
         hass.async_create_task(
             hass.helpers.discovery.async_load_platform(
-                "switch", DOMAIN, entry_config, config
+                "switch", DOMAIN, {CONF_HOST: manager.host}, config
             )
         )
     return True
@@ -70,6 +73,7 @@ class AvrManager:
 
     def __init__(self, hass: HomeAssistantType, host: str, port: int, name: str):
         self._hass = hass
+        self._name = name
         self._client = AvrClient(
             host, port, hass.helpers.aiohttp_client.async_get_clientsession()
         )
@@ -83,6 +87,11 @@ class AvrManager:
     def host(self):
         """Get the host."""
         return self._client.host
+
+    @property
+    def name(self):
+        """Get the name."""
+        return self._name
 
     async def update(self, utcnow=None):
         """Update the Avr data and signal platforms."""

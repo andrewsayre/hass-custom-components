@@ -3,7 +3,7 @@ import asyncio
 import logging
 
 from homeassistant.components.switch import SwitchEntity
-from homeassistant.const import CONF_HOST, CONF_HOSTS, CONF_NAME
+from homeassistant.const import CONF_HOST, CONF_HOSTS
 from homeassistant.core import callback
 
 from . import DOMAIN, SIGNAL_UPDATED, AvrManager
@@ -16,9 +16,8 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     """Set up the switch platform."""
     switches = []
     manager = hass.data[DOMAIN][CONF_HOSTS][discovery_info[CONF_HOST]]
-    name = discovery_info[CONF_NAME]
     for zone in manager.client.zones:
-        switches.append(DenonAvrSwitch(manager, zone, name))
+        switches.append(DenonAvrSwitch(manager, zone))
 
     async_add_entities(switches, True)
 
@@ -26,11 +25,11 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
 class DenonAvrSwitch(SwitchEntity):
     """Representation of a Denon/Maranz AVR power switch."""
 
-    def __init__(self, manager: AvrManager, zone: AvrZone, name: str):
+    def __init__(self, manager: AvrManager, zone: AvrZone):
         """Init the switch."""
         self._manager = manager
         self._zone = zone
-        self._name = f"{name} Zone {zone.zone_number}"
+        self._name = f"{manager.name} Zone {zone.zone_number}"
         self._signals = []
 
     @property
