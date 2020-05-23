@@ -8,9 +8,14 @@ URL_COMMAND = "/goform/AppCommand.xml"
 URL_ZONE_TURN_OFF = "/goform/formiPhoneAppPower.xml?{zone}+PowerStandby"
 URL_ZONE_TURN_ON = "/goform/formiPhoneAppPower.xml?{zone}+PowerOn"
 
-STATUS_REQUEST = '<?xml version="1.0" encoding="utf-8" ?><tx><cmd id="1">GetAllZonePowerStatus</cmd></tx>'
+STATUS_REQUEST = '<?xml version="1.0" encoding="utf-8" ?><tx><cmd id="1">GetAllZonePowerStatus</cmd><cmd id="2">GetAllZoneStereo</cmd></tx>'
 
 HEADERS = {"Content-Type": "application/xml"}
+
+ZONE_1 = 1
+ZONE_2 = 2
+ZONE_3 = 3
+ZONE_4 = 4
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -25,11 +30,28 @@ class AvrClient:
         self._base_url = f"http://{host}:{port}"
         self._session = session
         self._zones = []
+        self._all_zone_stereo_enabled = False
+        self._all_zone_stereo_zones = []
+
+    @property
+    def host(self):
+        """Get the host of the AVR."""
+        return self._host
 
     @property
     def zones(self):
         """Get the zones in the AVR."""
         return self._zones
+
+    @property
+    def all_zone_stereo_enabled(self):
+        """Return True if the All Zone Stereo option is active."""
+        return self._all_zone_stereo_enabled
+
+    @property
+    def all_zone_stereo_zones(self):
+        """Return the zones enabled for All Zone Stereo."""
+        return self._all_zone_stereo_zones
 
     async def update(self):
         """Obtain the latest state for the AVR."""
@@ -47,6 +69,14 @@ class AvrClient:
                         self._zones.append(AvrZone(zone_number, self))
                     zone = self._zones[index]
                     zone._is_on = data.text == "ON"
+
+                # Process all zone stereo
+                self._all_zone_stereo_enabled = xml[1].find("value").text == "1"
+                self._all_zone_stereo_zones.clear()
+                zones_text = xml[1].find("zones").text
+                for zone_index, is_on in enumerate(zones_text):
+                    if is_on == "1":
+                        self._all_zone_stereo_zones.append(zone_index + 1)
 
     async def get_request(self, url: str):
         """Perform a GET request to the AVR."""

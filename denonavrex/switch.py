@@ -3,10 +3,10 @@ import asyncio
 import logging
 
 from homeassistant.components.switch import SwitchEntity
-from homeassistant.const import CONF_HOST, CONF_NAME, CONF_PORT
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.const import CONF_HOST, CONF_HOSTS, CONF_NAME
 
-from .avrclient import AvrClient, AvrZone
+from . import DOMAIN
+from .avrclient import AvrZone
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -14,12 +14,8 @@ _LOGGER = logging.getLogger(__name__)
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
     """Set up the switch platform."""
     switches = []
-    host = discovery_info[CONF_HOST]
-    port = discovery_info[CONF_PORT]
+    client = hass.data[DOMAIN][CONF_HOSTS][discovery_info[CONF_HOST]]
     name = discovery_info[CONF_NAME]
-
-    client = AvrClient(host, port, async_get_clientsession(hass))
-    await client.update()
     for zone in client.zones:
         switches.append(DenonAvrSwitch(zone, name))
 
