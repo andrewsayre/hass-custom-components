@@ -76,7 +76,7 @@ class AvrClient:
                 zones_text = xml[1].find("zones").text
                 for zone_index, is_on in enumerate(zones_text):
                     if is_on == "1":
-                        self._all_zone_stereo_zones.append(zone_index + 1)
+                        self._all_zone_stereo_zones.append(zone_index + 2)
 
     async def get_request(self, url: str):
         """Perform a GET request to the AVR."""
